@@ -1,0 +1,57 @@
+---
+title: "Hypothesis Testing"
+author: "Olivia Bryant"
+date: "2023-10-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Hypothesis Testing
+
+```{r}
+library(tidyverse)
+library(MASS)
+```
+
+```{r}
+sample_data <- read.csv("choropleth_sample_data.csv")
+head(sample_data)
+```
+### Visualise the Data
+```{r}
+# visualise prescribing rates for all GPS
+hist(sample_data$RATE_OVERALL, breaks = 15)
+```
+
+```{r}
+# visualise the distribution for homeless GPs
+homeless_gp <- sample_data %>%
+  filter(HOMELESS_GP == 1)
+hist(homeless_gp$RATE_OVERALL, breaks=20)
+```
+
+```{r}
+# visualise the distribution for non-homeless GPs
+nonhomeless_gp <- sample_data %>%
+  filter(HOMELESS_GP == 0)
+hist(nonhomeless_gp$RATE_OVERALL, breaks=20)
+```
+
+In this example, the two groupings we are comparing are determined by a binary variable called HOMELESS_GP that was 1 if the GP was a homeless specialist and 0 otherwise. You will want to change this to the binary variable you are using to break the GPs into two groups for comparison (i.e. MOST_DEPRIVED.)
+```{r}
+# create box plots for the two groups
+boxplot(RATE_OVERALL ~ HOMELESS_GP, data = sample_data,
+        col = c("#FFE0B2", "#F57C00"), names=c("Non-Homeless GP", "Homeless GPs"))
+```
+### T-Test
+```{r}
+t.test(RATE_OVERALL ~ HOMELESS_GP, data = sample_data, var.equal = FALSE)
+```
+### Wilcoxon Rank Sum Test
+```{r}
+wilcox.test(RATE_OVERALL ~ HOMELESS_GP, data = sample_data)
+```
+
