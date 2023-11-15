@@ -1,0 +1,153 @@
+---
+title: "Maps Tutorial"
+author: "Olivia Bryant"
+date: "2023-10-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Maps Tutorial
+
+For this tutorial, we need to use several different packages.
+
+To install each of the packages click Tools > Install Packages. You only have to install the package once.
+```{r echo=FALSE, include=FALSE}
+# import necessary libraries
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(ggtext)
+library(scales)
+library(sf)
+library(maps)
+library(mapproj)
+```
+
+### Choropleth Maps
+
+Choropleth maps are heatmaps where regions are shaded to represent data. They involve two datasets:
+
+1. the data you wish the choropleth to show
+2. files that gives the boundaries for the regions. These are typically in the form of shapefiles.
+
+We probably don't want to show the coordinates or the legend and as with any figure, we should always add a title and the source. For more information on how to adjust the styles of R plots in ggplot, look at https://ggplot2.tidyverse.org/reference/theme.html
+
+
+Firstly, let's read in the sample data.
+
+```{r}
+GP_sample_data <- read.csv("choropleth_sample_data.csv")
+GP_sample_data
+```
+
+```{r}
+NHS_regions_bound <- read_sf("Boundary Files/NHS_England_Regions_(April_2019)_EN_BFC.shp")
+NHS_regions_bound
+```
+
+```{r}
+regions_practice_code <- read.csv("practice_code_regions.csv")
+regions_practice_code
+```
+We want to assign the correct region to the GP sample data and to do this, we join them together. We're going to use a left join (you can read more about joins here https://dplyr.tidyverse.org/reference/mutate-joins.html)
+. We are joining on the practice code, which is in both datasets and is spelt in exactly the same way. The reason we are joining to a separate dataset and not taking the region as spelt in the original data is because we are going to later join with shape files and joins are case sensitive so we need to styling and spelling to be exactly the same. In the original data, regions are given completely in upper case.
+
+```{r}
+plot_data <- left_join(GP_sample_data, regions_practice_code, by="PRACTICE_CODE")
+plot_data
+```
+
+We need to find the average for each of the regions for the chloropleth. We group by the region name and then calculate the mean. You can choose to plot the mean or another metric, like the median, which is less likely to be skewed. In this example, we're plotting the rate for all drugs but if you want to plot the subgroups, you can change to the other rate variables.
+
+```{r}
+plot_data <- plot_data %>%
+  group_by(REGIONAL_OFFICE_NAME) %>%
+  summarise(average_rate = mean(RATE_OVERALL))
+plot_data
+```
+
+We will then join the shapefile and the data together so that the dataset contains the data we are plotting and the regions from the shapefile. Shapefiles are files that contain polygon shapes that determine the shapes of each of the regions.
+```{r}
+plot_data <- left_join(NHS_regions_bound, plot_data, by = c("nhser19nm" = "REGIONAL_OFFICE_NAME"))
+plot_data
+```
+
+```{r}
+choropleth <- ggplot(plot_data, aes(fill = average_rate)) +
+    geom_sf(color = "#ffffff", size = 0.1) +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      axis.text.y=element_blank(),
+      axis.text.x=element_blank(),
+      axis.ticks=element_blank(),
+    )
+choropleth
+
+```
+
+
+Using the scale_fill_distiller function, you can choose a colour scheme and manually set the breaks that are listed on the legend, as well as giving the legend a title. Direction switches the direction so that the darker colours represent higher numbers.
+
+```{r}
+choropleth <- ggplot(plot_data, aes(fill = average_rate)) +
+  # creates a white border around the regions with a thickness of 0.1
+    geom_sf(color = "#ffffff", size = 0.1) +
+    scale_fill_distiller(name="Items per 1000 Patients", palette = "Purples", direction = -1, breaks = c(0.3, 0.4, 0.5)) +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      axis.text.y=element_blank(),
+      axis.text.x=element_blank(),
+      axis.ticks=element_blank(),
+    )
+choropleth
+```
+Final plot with styling:
+```{r}
+choropleth2 <- ggplot(plot_data, aes(fill = average_rate)) +
+  # creates a white border around the regions with a thickness of 0.1
+    geom_sf(color = "#ffffff", size = 0.1) +
+    scale_fill_distiller(name="Items per 1000 Patients", palette = "Blues", direction = -1, breaks = c(0.3, 0.4, 0.5)) +
+    theme_fivethirtyeight() +
+    theme(legend.position = "right",
+        legend.justification = c("right", "top"),
+        legend.text = element_text(size = 8),
+        plot.title = element_text(size=14),
+        axis.text=element_blank(),
+        axis.title = element_blank(),
+        legend.direction = "vertical",
+        plot.caption = element_text(hjust = 0, vjust = 0),
+        plot.background = element_rect(fill = "white", colour = "white"),
+        panel.background = element_rect(fill = "white", colour = "white"),
+        legend.background = element_rect(fill = "white", colour = "white"),
+        panel.grid.major.x = element_blank()) +
+  labs(title = "Drug Prescriptions by NHS Region in England in July 2020",
+       subtitle = 'The South West and Midlands show the highest prescribing rates.' ,
+       x = element_blank(),
+       caption = "Source: OpenPrescribing.net, EBM DataLab, University of Oxford, 2020")
+
+choropleth2
+```
+
+Save the plot. When making adjustments to the styling, always look at the version saved and not the version produced by RMarkdown as the version saved is the one that you will probably copy into your research documents and it is more accurate.
+```{r}
+ggsave(plot = choropleth2, 'prescriptions_choropleth.png', width = 8, height = 10, units = "in")
+```
+
+
+### Important Design Considerations
+1. Colour schemes are best when they feature one colour and have different shades of that colour, or are a gradient between two coolours. Beware of 'rainbow' colour schemes that are hard to interpret.
+2. Research has shown that when looking at a plot, the human eye is drawn to text first. Always include a title, axis labels, and a caption with the data source. If you want to make a specific comment about the plot, you could add this as a subtitle.
+3. When choosing sizing, save the image first. Make sure the text on the plot is no smaller than the text in the document that the figure is going into.
+4. You can make any kind of styling adjustments to the plot as you want and all of these are available through a quick Google search. As a starting point, you can use the built in ggthemes package to select a pre-built theme.
+
+### Maps to Create
+Produce choropleth maps for the overall prescribing rates by region and the regional differences in the subgroups of contraceptives. (NOTE: as you have calculated the prescribing rates of most deprived and not most deprived GP separately, you will have to combine these into one dataset and one CSV file as we want to visualise regional differences across all GP practices.)
+
+Remember: save each sheet to a CSV to load into R.
